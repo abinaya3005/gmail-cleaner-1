@@ -1,23 +1,49 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
 <head>
-  <title>Delete Emails</title>
+    <meta charset="utf-8">
+    <title>Gmail Cleaner - Delete Emails</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        h2 { color: #333; }
+        .messages { background: #f9f9f9; padding: 10px; border: 1px solid #ddd; margin-bottom: 20px; }
+        .messages li { margin-bottom: 5px; }
+        form { margin-top: 10px; }
+        input[type=text] { width: 300px; padding: 5px; }
+        button { padding: 8px 15px; background: #28a745; color: white; border: none; cursor: pointer; }
+        button:hover { background: #218838; }
+    </style>
 </head>
 <body>
-  <h2>Select Categories to Delete</h2>
-  <form method="POST" action="{{ url_for('perform_delete') }}">
+
+<h2>Select categories to delete emails</h2>
+
+<!-- Show flash messages -->
+{% with messages = get_flashed_messages() %}
+  {% if messages %}
+    <ul class="messages">
+      {% for msg in messages %}
+        <li>{{ msg }}</li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+{% endwith %}
+
+<form method="POST" action="{{ url_for('perform_delete') }}">
     <label><input type="checkbox" name="category" value="flipkart"> Flipkart</label><br>
     <label><input type="checkbox" name="category" value="amazon"> Amazon</label><br>
     <label><input type="checkbox" name="category" value="gpay"> GPay</label><br>
-    <label>Custom Email: <input type="text" name="custom_email"></label><br>
-    <label>Action: 
-      <select name="action">
+    <label><input type="checkbox" name="category" value="your_choice"> Custom Email</label><br>
+    <input type="text" name="custom_email" placeholder="Enter email if Custom"><br><br>
+
+    <label>Action:</label>
+    <select name="action">
         <option value="trash">Move to Trash</option>
         <option value="delete">Delete Permanently</option>
-      </select>
-    </label><br>
+    </select><br><br>
+
     <button type="submit">Delete Emails</button>
-  </form>
-  <a href="{{ url_for('index') }}">Back</a>
+</form>
+
 </body>
 </html>
