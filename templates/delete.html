@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Delete Emails</title>
+</head>
+<body>
+  <h2>Select Categories to Delete</h2>
+  <form method="POST" action="{{ url_for('perform_delete') }}">
+    <label><input type="checkbox" name="category" value="flipkart"> Flipkart</label><br>
+    <label><input type="checkbox" name="category" value="amazon"> Amazon</label><br>
+    <label><input type="checkbox" name="category" value="gpay"> GPay</label><br>
+    <label>Custom Email: <input type="text" name="custom_email"></label><br>
+    <label>Action: 
+      <select name="action">
+        <option value="trash">Move to Trash</option>
+        <option value="delete">Delete Permanently</option>
+      </select>
+    </label><br>
+    <button type="submit">Delete Emails</button>
+  </form>
+  <a href="{{ url_for('index') }}">Back</a>
+</body>
+</html>

@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Gmail Cleaner</title>
+</head>
+<body>
+  <h2>Gmail Cleaner</h2>
+  {% if logged_in %}
+    <a href="{{ url_for('delete_page') }}">Go to Delete Page</a>
+    <a href="{{ url_for('logout') }}">Logout</a>
+  {% else %}
+    <a href="{{ url_for('authorize') }}">Login with Google</a>
+  {% endif %}
+</body>
+</html>
