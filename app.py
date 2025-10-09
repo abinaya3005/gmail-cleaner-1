@@ -6,19 +6,21 @@ from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
-# Load environment variables
+# Load environment variables from .env locally
 load_dotenv()
 
-# Allow HTTP (for local testing)
-os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
+# Only allow insecure transport for local development
+if os.environ.get("FLASK_ENV") == "development":
+    os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 
+# Flask app
 app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET", "change-me")
 
 # Gmail API setup
 SCOPES = ['https://www.googleapis.com/auth/gmail.modify']
 
-# Load secrets safely
+# Load Google credentials from environment variables
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
 
@@ -29,6 +31,11 @@ def index():
 
 @app.route("/authorize")
 def authorize():
+    # Compute redirect URI
+    redirect_uri = url_for('oauth2callback', _external=True)
+    print("Redirect URI being sent to Google:", redirect_uri)  # Debug line
+
+    # OAuth flow
     flow = Flow.from_client_config(
         {
             "web": {
@@ -39,7 +46,7 @@ def authorize():
             }
         },
         scopes=SCOPES,
-        redirect_uri=url_for('oauth2callback', _external=True)
+        redirect_uri=redirect_uri
     )
 
     auth_url, state = flow.authorization_url(
@@ -69,6 +76,7 @@ def oauth2callback():
         redirect_uri=url_for('oauth2callback', _external=True)
     )
 
+    # Fetch token
     flow.fetch_token(authorization_response=request.url)
     creds = flow.credentials
     session['credentials'] = {
