@@ -31,11 +31,9 @@ def index():
 
 @app.route("/authorize")
 def authorize():
-    # Compute redirect URI
     redirect_uri = url_for('oauth2callback', _external=True)
     print("Redirect URI being sent to Google:", redirect_uri)  # Debug line
 
-    # OAuth flow
     flow = Flow.from_client_config(
         {
             "web": {
@@ -76,7 +74,6 @@ def oauth2callback():
         redirect_uri=url_for('oauth2callback', _external=True)
     )
 
-    # Fetch token
     flow.fetch_token(authorization_response=request.url)
     creds = flow.credentials
     session['credentials'] = {
@@ -101,9 +98,7 @@ def get_gmail_service():
         'client_secret': creds.client_secret,
         'scopes': creds.scopes
     }
-    service = build('gmail', 'v1', credentials=creds)
-    print("Gmail service object created:", service)  # Debug line
-    return service
+    return build('gmail', 'v1', credentials=creds)
 
 @app.route("/delete", methods=['GET'])
 def delete_page():
@@ -123,11 +118,11 @@ def perform_delete():
 
     query_parts = []
     if 'flipkart' in categories:
-        query_parts.append('from:flipkart.com')
+        query_parts.append('from:flipkart')
     if 'amazon' in categories:
-        query_parts.append('from:amazon.in')
+        query_parts.append('from:amazon')
     if 'gpay' in categories:
-        query_parts.append('from:gpay.in')
+        query_parts.append('from:gpay')
     if 'your_choice' in categories and custom_email:
         query_parts.append(f'from:{custom_email}')
 
@@ -136,7 +131,6 @@ def perform_delete():
         return redirect(url_for('delete_page'))
 
     q = " OR ".join(query_parts)
-    print("Gmail search query:", q)  # Debug line
 
     try:
         messages = []
@@ -148,9 +142,10 @@ def perform_delete():
             if 'messages' in res:
                 messages.extend(res['messages'])
 
-        print(f"Total messages found: {len(messages)}")  # Debug line
-        for m in messages[:5]:  # Show first 5 messages for debugging
-            print(m)
+        # DEBUG: Show query and first 5 message IDs on web page
+        flash(f"Search Query: {q}")
+        flash(f"Total Messages Found: {len(messages)}")
+        flash(f"First 5 Message IDs: {[m['id'] for m in messages[:5]]}")
 
         deleted = 0
         for m in messages:
@@ -160,10 +155,11 @@ def perform_delete():
             else:
                 service.users().messages().delete(userId='me', id=mid).execute()
             deleted += 1
+
         flash(f"{deleted} messages deleted for query: {q}")
+
     except HttpError as e:
         flash(f"Gmail API error: {e}")
-        print("Gmail API error:", e)  # Debug line
 
     return redirect(url_for('delete_page'))
 
