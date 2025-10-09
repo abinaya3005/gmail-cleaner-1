@@ -101,7 +101,9 @@ def get_gmail_service():
         'client_secret': creds.client_secret,
         'scopes': creds.scopes
     }
-    return build('gmail', 'v1', credentials=creds)
+    service = build('gmail', 'v1', credentials=creds)
+    print("Gmail service object created:", service)  # Debug line
+    return service
 
 @app.route("/delete", methods=['GET'])
 def delete_page():
@@ -134,6 +136,7 @@ def perform_delete():
         return redirect(url_for('delete_page'))
 
     q = " OR ".join(query_parts)
+    print("Gmail search query:", q)  # Debug line
 
     try:
         messages = []
@@ -144,6 +147,11 @@ def perform_delete():
             res = service.users().messages().list(userId='me', q=q, pageToken=res['nextPageToken']).execute()
             if 'messages' in res:
                 messages.extend(res['messages'])
+
+        print(f"Total messages found: {len(messages)}")  # Debug line
+        for m in messages[:5]:  # Show first 5 messages for debugging
+            print(m)
+
         deleted = 0
         for m in messages:
             mid = m['id']
@@ -155,6 +163,7 @@ def perform_delete():
         flash(f"{deleted} messages deleted for query: {q}")
     except HttpError as e:
         flash(f"Gmail API error: {e}")
+        print("Gmail API error:", e)  # Debug line
 
     return redirect(url_for('delete_page'))
 
