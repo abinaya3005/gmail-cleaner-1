@@ -6,10 +6,10 @@ from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
-# Load environment variables from .env locally
+# Load environment variables
 load_dotenv()
 
-# Only allow insecure transport for local development
+# Allow HTTP for local testing
 if os.environ.get("FLASK_ENV") == "development":
     os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 
@@ -32,8 +32,6 @@ def index():
 @app.route("/authorize")
 def authorize():
     redirect_uri = url_for('oauth2callback', _external=True)
-    print("Redirect URI being sent to Google:", redirect_uri)  # Debug line
-
     flow = Flow.from_client_config(
         {
             "web": {
@@ -46,20 +44,17 @@ def authorize():
         scopes=SCOPES,
         redirect_uri=redirect_uri
     )
-
     auth_url, state = flow.authorization_url(
         access_type='offline',
         include_granted_scopes='true',
         prompt='consent'
     )
-
     session['state'] = state
     return redirect(auth_url)
 
 @app.route("/oauth2callback")
 def oauth2callback():
     state = session.get('state')
-
     flow = Flow.from_client_config(
         {
             "web": {
@@ -73,7 +68,6 @@ def oauth2callback():
         state=state,
         redirect_uri=url_for('oauth2callback', _external=True)
     )
-
     flow.fetch_token(authorization_response=request.url)
     creds = flow.credentials
     session['credentials'] = {
@@ -117,13 +111,17 @@ def perform_delete():
     action = request.form.get('action', 'trash')
 
     query_parts = []
+
+    # Predefined categories
     if 'flipkart' in categories:
-        query_parts.append('from:flipkart')
+        query_parts.append('from:flipkart.com')
     if 'amazon' in categories:
-        query_parts.append('from:amazon')
+        query_parts.append('from:amazon.in')
     if 'gpay' in categories:
-        query_parts.append('from:gpay')
-    if 'your_choice' in categories and custom_email:
+        query_parts.append('from:gpay.in')
+
+    # Always include custom email if typed
+    if custom_email:
         query_parts.append(f'from:{custom_email}')
 
     if not query_parts:
@@ -131,6 +129,7 @@ def perform_delete():
         return redirect(url_for('delete_page'))
 
     q = " OR ".join(query_parts)
+    flash(f"Query being sent to Gmail: {q}")  # Debug line
 
     try:
         messages = []
@@ -142,11 +141,6 @@ def perform_delete():
             if 'messages' in res:
                 messages.extend(res['messages'])
 
-        # DEBUG: Show query and first 5 message IDs on web page
-        flash(f"Search Query: {q}")
-        flash(f"Total Messages Found: {len(messages)}")
-        flash(f"First 5 Message IDs: {[m['id'] for m in messages[:5]]}")
-
         deleted = 0
         for m in messages:
             mid = m['id']
@@ -155,9 +149,7 @@ def perform_delete():
             else:
                 service.users().messages().delete(userId='me', id=mid).execute()
             deleted += 1
-
         flash(f"{deleted} messages deleted for query: {q}")
-
     except HttpError as e:
         flash(f"Gmail API error: {e}")
 
