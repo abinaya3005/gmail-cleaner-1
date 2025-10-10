@@ -1,177 +1,79 @@
 import os
-from dotenv import load_dotenv
-from flask import Flask, redirect, url_for, session, request, render_template, flash
-from google_auth_oauthlib.flow import Flow
-from google.oauth2.credentials import Credentials
+import pickle
+from flask import Flask, render_template, request
+from google.auth.transport.requests import Request
+from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
-# Load environment variables from .env
-load_dotenv()
+# Allow local HTTP (for testing only)
+os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 
-# Allow HTTP for local testing
-if os.environ.get("FLASK_ENV") == "development":
-    os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
-
-# Flask app setup
-app = Flask(__name__)
-app.secret_key = os.getenv("FLASK_SECRET", "change-me")
-
-# Gmail API setup
 SCOPES = ['https://www.googleapis.com/auth/gmail.modify']
 
-# Load Google credentials
-GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
-GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
+app = Flask(__name__)
+app.secret_key = 'supersecretkey'  # Needed for sessions
 
-
-@app.route("/")
-def index():
-    logged_in = 'credentials' in session
-    return render_template("index.html", logged_in=logged_in)
-
-
-@app.route("/authorize")
-def authorize():
-    redirect_uri = url_for('oauth2callback', _external=True)
-    flow = Flow.from_client_config(
-        {
-            "web": {
-                "client_id": GOOGLE_CLIENT_ID,
-                "client_secret": GOOGLE_CLIENT_SECRET,
-                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-                "token_uri": "https://oauth2.googleapis.com/token"
-            }
-        },
-        scopes=SCOPES,
-        redirect_uri=redirect_uri
-    )
-    auth_url, state = flow.authorization_url(
-        access_type='offline',
-        include_granted_scopes='true',
-        prompt='consent'
-    )
-    session['state'] = state
-    return redirect(auth_url)
-
-
-@app.route("/oauth2callback")
-def oauth2callback():
-    state = session.get('state')
-    flow = Flow.from_client_config(
-        {
-            "web": {
-                "client_id": GOOGLE_CLIENT_ID,
-                "client_secret": GOOGLE_CLIENT_SECRET,
-                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-                "token_uri": "https://oauth2.googleapis.com/token"
-            }
-        },
-        scopes=SCOPES,
-        state=state,
-        redirect_uri=url_for('oauth2callback', _external=True)
-    )
-
-    flow.fetch_token(authorization_response=request.url)
-    creds = flow.credentials
-    session['credentials'] = {
-        'token': creds.token,
-        'refresh_token': creds.refresh_token,
-        'token_uri': creds.token_uri,
-        'client_id': creds.client_id,
-        'client_secret': creds.client_secret,
-        'scopes': creds.scopes
-    }
-    return redirect(url_for('delete_page'))
-
-
+# Gmail API service
 def get_gmail_service():
-    if 'credentials' not in session:
-        return None
-    creds = Credentials(**session['credentials'])
-    session['credentials'] = {
-        'token': creds.token,
-        'refresh_token': creds.refresh_token,
-        'token_uri': creds.token_uri,
-        'client_id': creds.client_id,
-        'client_secret': creds.client_secret,
-        'scopes': creds.scopes
-    }
-    return build('gmail', 'v1', credentials=creds)
+    creds = None
+    if os.path.exists('token.pickle'):
+        with open('token.pickle', 'rb') as token:
+            creds = pickle.load(token)
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file(
+                'client_secret.json', SCOPES)
+            creds = flow.run_local_server(port=0)
+        with open('token.pickle', 'wb') as token:
+            pickle.dump(creds, token)
+    service = build('gmail', 'v1', credentials=creds)
+    return service
 
-
-@app.route("/delete", methods=['GET'])
-def delete_page():
-    if 'credentials' not in session:
-        return redirect(url_for('authorize'))
-    return render_template("delete.html")
-
-
-@app.route("/perform_delete", methods=['POST'])
-def perform_delete():
-    if 'credentials' not in session:
-        return redirect(url_for('authorize'))
-
+# Delete emails by query
+def delete_emails(query):
     service = get_gmail_service()
-    categories = request.form.getlist('category')
-    custom_email = request.form.get('custom_email', '').strip()
-    action = request.form.get('action', 'trash')
-
-    query_parts = []
-
-    # Default categories
-    if 'flipkart' in categories:
-        query_parts.append('from:flipkart.com')
-    if 'amazon' in categories:
-        query_parts.append('from:amazon.in')
-    if 'gpay' in categories:
-        query_parts.append('from:gpay.in')
-    if 'unread' in categories:
-        query_parts.append('is:unread')
-    if 'custom' in categories and custom_email:
-        query_parts.append(f'from:{custom_email}')
-
-    if not query_parts:
-        flash("Please select at least one category or enter a custom email.")
-        return redirect(url_for('delete_page'))
-
-    q = " OR ".join(query_parts)
-
     try:
-        messages = []
-        res = service.users().messages().list(userId='me', q=q, maxResults=500).execute()
-        if 'messages' in res:
-            messages.extend(res['messages'])
-        while 'nextPageToken' in res:
-            res = service.users().messages().list(
-                userId='me', q=q, pageToken=res['nextPageToken']
-            ).execute()
-            if 'messages' in res:
-                messages.extend(res['messages'])
+        results = service.users().messages().list(userId='me', q=query).execute()
+        messages = results.get('messages', [])
+        deleted_count = 0
+        for msg in messages:
+            service.users().messages().delete(userId='me', id=msg['id']).execute()
+            deleted_count += 1
+        return deleted_count
+    except HttpError as error:
+        print(f'An error occurred: {error}')
+        return 0
 
-        deleted = 0
-        for m in messages:
-            mid = m['id']
-            if action == 'trash':
-                service.users().messages().trash(userId='me', id=mid).execute()
-            else:
-                service.users().messages().delete(userId='me', id=mid).execute()
-            deleted += 1
+# Home page
+@app.route('/', methods=['GET', 'POST'])
+def index():
+    if request.method == 'POST':
+        category = request.form.get('category')
+        custom_query = request.form.get('custom_query', '').strip()
+        
+        if category == 'custom' and not custom_query:
+            return render_template('index.html', error="Please enter a custom search query!")
 
-        flash(f"{deleted} messages deleted for query: {q}")
+        # Predefined queries
+        queries = {
+            'flipkart': 'from:flipkart.com',
+            'amazon': 'from:amazon.in',
+            'gpay': 'from:gpay@google.com',
+            'unread': 'is:unread'
+        }
 
-    except HttpError as e:
-        flash(f"Gmail API error: {e}")
+        query = custom_query if category == 'custom' else queries.get(category, '')
 
-    return redirect(url_for('delete_page'))
+        deleted_count = delete_emails(query)
 
+        return render_template('delete.html', category=category, count=deleted_count, query=query)
 
-@app.route("/logout")
-def logout():
-    session.pop('credentials', None)
-    return redirect(url_for('index'))
+    return render_template('index.html')
 
-
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8080))
-    app.run(host="0.0.0.0", port=port)
+if __name__ == '__main__':
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host='0.0.0.0', port=port, debug=True)
+        

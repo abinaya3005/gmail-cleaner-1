@@ -1,15 +1,41 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Gmail Cleaner</title>
+    <meta charset="UTF-8">
+    <title>Gmail Cleaner</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 50px; }
+        input[type="text"] { padding: 5px; width: 300px; }
+        select, button { padding: 5px; }
+        .error { color: red; margin-bottom: 20px; }
+    </style>
 </head>
 <body>
-  <h2>Gmail Cleaner</h2>
-  {% if logged_in %}
-    <a href="{{ url_for('delete_page') }}">Go to Delete Page</a>
-    <a href="{{ url_for('logout') }}">Logout</a>
-  {% else %}
-    <a href="{{ url_for('authorize') }}">Login with Google</a>
-  {% endif %}
+    <h1>Gmail Cleaner</h1>
+    
+    {% if error %}
+        <div class="error">{{ error }}</div>
+    {% endif %}
+
+    <form method="POST">
+        <label>Select category:</label>
+        <select name="category" onchange="toggleCustom(this.value)">
+            <option value="flipkart">Flipkart</option>
+            <option value="amazon">Amazon</option>
+            <option value="gpay">GPay</option>
+            <option value="unread">Unread</option>
+            <option value="custom">Custom</option>
+        </select>
+        <br><br>
+        <input type="text" name="custom_query" id="custom_query" placeholder="Enter custom search query" style="display:none;">
+        <br><br>
+        <button type="submit">Delete Emails</button>
+    </form>
+
+    <script>
+        function toggleCustom(value){
+            document.getElementById('custom_query').style.display = (value === 'custom') ? 'inline-block' : 'none';
+        }
+    </script>
 </body>
 </html>
