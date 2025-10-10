@@ -4,79 +4,23 @@
     <meta charset="utf-8">
     <title>Gmail Cleaner - Delete Emails</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            background: #f2f4f8;
-            margin: 0;
-            padding: 0;
-        }
-        .container {
-            max-width: 500px;
-            margin: 60px auto;
-            background: white;
-            padding: 25px 30px;
-            border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-        h2 {
-            color: #333;
-            text-align: center;
-        }
-        form {
-            margin-top: 20px;
-        }
-        label {
-            display: block;
-            margin-bottom: 8px;
-            color: #333;
-        }
-        input[type=text] {
-            width: 100%;
-            padding: 8px;
-            margin-top: 5px;
-            border: 1px solid #ccc;
-            border-radius: 6px;
-        }
-        select {
-            width: 100%;
-            padding: 8px;
-            margin-top: 8px;
-            border: 1px solid #ccc;
-            border-radius: 6px;
-        }
-        button {
-            margin-top: 15px;
-            width: 100%;
-            padding: 10px;
-            background: #28a745;
-            color: white;
-            font-size: 16px;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-        }
-        button:hover {
-            background: #218838;
-        }
-        .messages {
-            background: #f9f9f9;
-            border: 1px solid #ddd;
-            padding: 10px;
-            margin-bottom: 15px;
-            border-radius: 6px;
-        }
-        .messages li {
-            color: #444;
-            margin-bottom: 5px;
-        }
+        body { font-family: Arial, sans-serif; margin: 40px; background: #f4f6f8; color: #333; }
+        h2 { color: #007bff; }
+        .container { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .messages { background: #f9f9f9; padding: 10px; border: 1px solid #ddd; margin-bottom: 20px; border-radius: 5px; }
+        .messages li { margin-bottom: 5px; }
+        form { margin-top: 10px; }
+        label { display: block; margin: 5px 0; }
+        input[type=text] { width: 300px; padding: 6px; border: 1px solid #ccc; border-radius: 5px; }
+        button { padding: 10px 15px; background: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        button:hover { background: #218838; }
+        select { padding: 5px; border-radius: 5px; border: 1px solid #ccc; }
     </style>
 </head>
 <body>
-
 <div class="container">
-    <h2>🧹 Gmail Cleaner</h2>
+    <h2>Select Categories to Delete Emails</h2>
 
-    <!-- Flash messages -->
     {% with messages = get_flashed_messages() %}
       {% if messages %}
         <ul class="messages">
@@ -91,20 +35,24 @@
         <label><input type="checkbox" name="category" value="flipkart"> Flipkart</label>
         <label><input type="checkbox" name="category" value="amazon"> Amazon</label>
         <label><input type="checkbox" name="category" value="gpay"> GPay</label>
-        <label><input type="checkbox" name="category" value="unread"> Unread Emails</label>
+        <label><input type="checkbox" name="category" value="unread"> Unread Mails</label>
         <label><input type="checkbox" name="category" value="custom"> Custom Email</label>
-
-        <input type="text" name="custom_email" placeholder="Enter custom email address (optional)">
+        <input type="text" name="custom_email" placeholder="Enter custom email (e.g., nykaa.com)">
+        <br><br>
 
         <label>Action:</label>
         <select name="action">
             <option value="trash">Move to Trash</option>
             <option value="delete">Delete Permanently</option>
-        </select>
+        </select><br><br>
 
-        <button type="submit">Delete Selected Emails</button>
+        <button type="submit">Delete Emails</button>
+    </form>
+
+    <br>
+    <form action="{{ url_for('logout') }}" method="get">
+        <button type="submit" style="background:#dc3545;">Logout</button>
     </form>
 </div>
-
 </body>
 </html>
