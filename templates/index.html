@@ -1,41 +1,108 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Gmail Cleaner</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 50px; }
-        input[type="text"] { padding: 5px; width: 300px; }
-        select, button { padding: 5px; }
-        .error { color: red; margin-bottom: 20px; }
-    </style>
-</head>
-<body>
-    <h1>Gmail Cleaner</h1>
-    
-    {% if error %}
-        <div class="error">{{ error }}</div>
-    {% endif %}
+import os
+import pickle
+from flask import Flask, render_template, request, redirect, url_for, flash, session
+from google_auth_oauthlib.flow import Flow
+from googleapiclient.discovery import build
+from google.auth.transport.requests import Request
+from google.oauth2.credentials import Credentials
 
-    <form method="POST">
-        <label>Select category:</label>
-        <select name="category" onchange="toggleCustom(this.value)">
-            <option value="flipkart">Flipkart</option>
-            <option value="amazon">Amazon</option>
-            <option value="gpay">GPay</option>
-            <option value="unread">Unread</option>
-            <option value="custom">Custom</option>
-        </select>
-        <br><br>
-        <input type="text" name="custom_query" id="custom_query" placeholder="Enter custom search query" style="display:none;">
-        <br><br>
-        <button type="submit">Delete Emails</button>
-    </form>
+# Flask setup
+app = Flask(_name_)
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", "supersecretkey")
 
-    <script>
-        function toggleCustom(value){
-            document.getElementById('custom_query').style.display = (value === 'custom') ? 'inline-block' : 'none';
-        }
-    </script>
-</body>
-</html>
+# OAuth scopes
+SCOPES = ['https://www.googleapis.com/auth/gmail.modify']
+
+# Google OAuth client config (will read from Render environment variable)
+GOOGLE_CLIENT_CONFIG = {
+    "web": {
+        "client_id": os.environ.get("GOOGLE_CLIENT_ID"),
+        "project_id": os.environ.get("GOOGLE_PROJECT_ID"),
+        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+        "token_uri": "https://oauth2.googleapis.com/token",
+        "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+        "client_secret": os.environ.get("GOOGLE_CLIENT_SECRET"),
+        "redirect_uris": [os.environ.get("GOOGLE_REDIRECT_URI")]
+    }
+}
+
+def get_gmail_service():
+    creds = None
+    if 'credentials' in session:
+        creds = Credentials(**session['credentials'])
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            return None  # OAuth needed
+    service = build('gmail', 'v1', credentials=creds)
+    return service
+
+@app.route('/')
+def index():
+    if 'credentials' not in session:
+        return redirect(url_for('authorize'))
+    return render_template('index.html')
+
+@app.route('/authorize')
+def authorize():
+    flow = Flow.from_client_config(
+        client_config=GOOGLE_CLIENT_CONFIG,
+        scopes=SCOPES
+    )
+    flow.redirect_uri = os.environ.get("GOOGLE_REDIRECT_URI")
+    authorization_url, state = flow.authorization_url(
+        access_type='offline',
+        include_granted_scopes='true',
+        prompt='consent'
+    )
+    session['state'] = state
+    return redirect(authorization_url)
+
+@app.route('/oauth2callback')
+def oauth2callback():
+    state = session['state']
+    flow = Flow.from_client_config(
+        client_config=GOOGLE_CLIENT_CONFIG,
+        scopes=SCOPES,
+        state=state
+    )
+    flow.redirect_uri = os.environ.get("GOOGLE_REDIRECT_URI")
+    flow.fetch_token(authorization_response=request.url)
+
+    creds = flow.credentials
+    session['credentials'] = {
+        'token': creds.token,
+        'refresh_token': creds.refresh_token,
+        'token_uri': creds.token_uri,
+        'client_id': creds.client_id,
+        'client_secret': creds.client_secret,
+        'scopes': creds.scopes
+    }
+
+    flash("Authorization successful! You can now delete emails.", "success")
+    return redirect(url_for('index'))
+
+@app.route('/delete', methods=['POST'])
+def delete_emails():
+    query = request.form.get('query')
+    service = get_gmail_service()
+    if not service:
+        flash("Authorization required.", "danger")
+        return redirect(url_for('index'))
+
+    # Search emails
+    result = service.users().messages().list(userId='me', q=query).execute()
+    messages = result.get('messages', [])
+    deleted_count = 0
+
+    for msg in messages:
+        service.users().messages().trash(userId='me', id=msg['id']).execute()
+        deleted_count += 1
+
+    flash(f"Deleted {deleted_count} emails matching '{query}'.", "success")
+    return redirect(url_for('index'))
+
+if _name_ == '_main_':
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host='0.0.0.0', port=port)
